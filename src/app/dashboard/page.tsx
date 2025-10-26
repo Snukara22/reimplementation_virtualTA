@@ -31,6 +31,11 @@ interface ChatHistoryResponse {
   history: any[];
 }
 
+interface ChatSession {
+  chat_id: string;
+  title: string;
+}
+
 // --- Token Manager ---
 const TokenManager = {
   getAccessToken: () => localStorage.getItem('token'),
@@ -52,6 +57,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [chatId, setChatId] = useState<string | null>(null);
   const [initialMessages, setInitialMessages] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<ChatSession[]>([]); 
   const router = useRouter();
 
   // --- Helper: Check token expiry ---
@@ -147,6 +153,47 @@ export default function Dashboard() {
     }
   };
 
+  const fetchChatSessions = async (token: string) => {
+    try {
+      const response = await fetch(`${API_URL}/api/virtual-ta/chat/sessions`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSessions(data.sessions || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch chat sessions:", error);
+    }
+  };
+  
+  const handleSelectChat = async (selectedChatId: string) => {
+    const token = TokenManager.getAccessToken();
+    if (token && selectedChatId !== chatId) {
+      setLoading(true);
+      localStorage.setItem(CHAT_ID_STORAGE_KEY, selectedChatId);
+      setChatId(selectedChatId);
+      await fetchChatHistory(selectedChatId, token);
+      setLoading(false);
+    }
+  };
+
+  const handleCreateNewChat = async () => {
+    const token = TokenManager.getAccessToken();
+    if (token) {
+      setLoading(true);
+      // Clear the stored ID to force creation of a new one
+      localStorage.removeItem(CHAT_ID_STORAGE_KEY); 
+      const newChatId = await getActiveChatId(token);
+      if (newChatId) {
+        setChatId(newChatId);
+        setInitialMessages([]); // Start with a blank chat
+        await fetchChatSessions(token); // Refresh the list
+      }
+      setLoading(false);
+    }
+  };
+
   // --- Main initialization effect ---
   useEffect(() => {
     const initialize = async () => {
@@ -157,8 +204,11 @@ export default function Dashboard() {
           return;
         }
 
+        await fetchChatSessions(token);
+
         const activeChatId = await getActiveChatId(token);
         if (!activeChatId) {
+          console.error("Failed to get or create a chat session.");
           setLoading(false);
           return;
         }
@@ -203,7 +253,7 @@ export default function Dashboard() {
   return (
     <main className="flex flex-col h-[calc(100vh-64px)]">
       <div className="flex-1">
-        <MyAssistant chatId={chatId} initialMessages={initialMessages} />
+        <MyAssistant chatId={chatId} initialMessages={initialMessages} sessions={sessions} onSelectChat={handleSelectChat} onCreateNewChat={handleCreateNewChat} />
       </div>
     </main>
   );

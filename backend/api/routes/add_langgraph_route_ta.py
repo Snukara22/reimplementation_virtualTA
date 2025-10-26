@@ -257,6 +257,36 @@ def add_langgraph_route(app: FastAPI, graph, path: str, current_user: UserInDB =
         if chat_session:
             return {"history": chat_session.get("messages", [])}
         return {"history": []}
+    
+    @app.get(f"{path}/sessions")
+    async def get_chat_sessions(current_user: dict = Depends(get_current_user)):
+        db = MongoDB.get_db()
+        # Find all sessions for the user, sorted by most recent
+        sessions_cursor = db.chat_sessions.find(
+            {"user_id": ObjectId(current_user.id)},
+            # Only retrieve the chat_id and the first message for the title
+            {"chat_id": 1, "messages": {"$slice": 1}}
+        ).sort("_id", -1)
+
+        sessions = []
+        # for session in await sessions_cursor.to_list(length=100):
+        for session in sessions_cursor.limit(100):
+            first_message_content = "New Chat"
+            # Safely get the text from the first message to use as a title
+            if session.get("messages"):
+                try:
+                    first_message_content = session["messages"][0]["content"][0]["text"]
+                except (IndexError, KeyError):
+                    # If message is not text, keep the default title
+                    pass
+
+            sessions.append({
+                "chat_id": session["chat_id"],
+                # Truncate for clean display
+                "title": first_message_content[:50]
+            })
+
+        return {"sessions": sessions}
 
     async def chat_completions(request: ChatRequest, x_chat_id: Optional[str] = Header(None, alias="X-Chat-ID"), current_user: dict = Depends(get_current_user)):
         db = MongoDB.get_db()
@@ -311,7 +341,7 @@ def add_langgraph_route(app: FastAPI, graph, path: str, current_user: UserInDB =
         config = {
             "configurable": {
                 "thread_id": x_chat_id,
-                "system": request.system,
+                "system": SYSTEM_MESSAGE,
                 "frontend_tools": request.tools,
                 "metadata": {
                     "langfuse_session_id": x_chat_id,
@@ -361,7 +391,7 @@ def add_langgraph_route(app: FastAPI, graph, path: str, current_user: UserInDB =
                 final_messages = thread_state.values['messages']
 
                 messages_to_store = []
-                for msg in final_messages[-5:]:
+                for msg in final_messages:
                     role = ""
                     content = []
                     if isinstance(msg, HumanMessage):

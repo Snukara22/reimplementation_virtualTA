@@ -152,10 +152,11 @@ async def get_tools(config):
 
 
 async def call_model(state, config):
-   system = config["configurable"]["system"]
+#    system = config["configurable"]["system"]
 
 
-   messages = [SystemMessage(content=system)] + state["messages"]
+#    messages = [SystemMessage(content=system)] + state["messages"]
+   messages = state["messages"]
    tool_defs = await get_tool_defs(config)
    model_with_tools = model.bind_tools(tool_defs)
    response = await model_with_tools.ainvoke(messages)

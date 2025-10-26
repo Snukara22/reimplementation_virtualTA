@@ -30,9 +30,12 @@ import { Button } from "@/components/ui/button";
 interface MyAssistantProps {
   chatId: string | null;
   initialMessages?: any[];
+  sessions?: Array<{ chat_id: string; title: string }>;
+  onSelectChat?: (chat_id: string) => void;
+  onCreateNewChat?: () => void;
 }
 
-export function MyAssistant({ chatId, initialMessages }: MyAssistantProps) {
+export function MyAssistant({ chatId, initialMessages, sessions, onSelectChat, onCreateNewChat }: MyAssistantProps) {
   const [rateLimitDialogOpen, setRateLimitDialogOpen] = useState(false);
   const token = localStorage.getItem('token');
   const API_URL = getApiUrl()
@@ -115,6 +118,9 @@ export function MyAssistant({ chatId, initialMessages }: MyAssistantProps) {
           files={files}
           onDeleteFile={handleDeleteFile}
           onFileUploaded={handleFileUploaded}
+          sessions={sessions}
+          onSelectChat={onSelectChat}
+          onCreateNewChat={onCreateNewChat}
         />
         
         <div className="px-4 py-4">
