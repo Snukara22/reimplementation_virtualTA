@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { FileText, Plus, Trash2, Upload } from "lucide-react";
+import { FileText, Plus, Trash2, Upload, PlusCircle } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,9 +26,12 @@ interface CourseEvalSidebarProps {
   onDeleteFile: (id: string) => void;
 
   onFileUploaded: (file: { id: string; name: string }) => void;
+  sessions?: Array<{ chat_id: string; title: string }>;
+  onSelectChat?: (chat_id: string) => void;
+  onCreateNewChat?: () => void;
 }
 
-export function CourseEvalSidebar({ files, onDeleteFile, onFileUploaded }: CourseEvalSidebarProps) {
+export function CourseEvalSidebar({ files, onDeleteFile, onFileUploaded, sessions, onSelectChat, onCreateNewChat }: CourseEvalSidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -223,10 +226,33 @@ const formData = new FormData();
       />
 
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
+      {/* <div className="p-4 border-b border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900">Virtual Teaching Assistant</h2>
         <p className="text-sm text-gray-500">Manage your files</p>
-      </div>
+      </div> */}
+      <div className="p-4">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-semibold text-gray-500 uppercase">Chat History</h3>
+            <button
+              onClick={onCreateNewChat}
+              className="p-1 text-gray-500 hover:text-gray-800 rounded-full hover:bg-gray-200"
+              title="New Chat"
+            >
+              <PlusCircle className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="space-y-1">
+            {sessions?.map((session) => (
+              <button
+                key={session.chat_id}
+                onClick={() => onSelectChat?.(session.chat_id)}
+                className="w-full text-left px-2 py-1.5 text-sm rounded-md hover:bg-gray-200 truncate"
+              >
+                {session.title}
+              </button>
+            ))}
+          </div>
+        </div>
 
       {/* File List */}
       <ScrollArea className="flex-1 px-3">

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from .tools import tools
 from .state import AgentState
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.checkpoint.memory import MemorySaver
 import os
 import sys
 import importlib
@@ -151,10 +152,11 @@ async def get_tools(config):
 
 
 async def call_model(state, config):
-   system = config["configurable"]["system"]
+#    system = config["configurable"]["system"]
 
 
-   messages = [SystemMessage(content=system)] + state["messages"]
+#    messages = [SystemMessage(content=system)] + state["messages"]
+   messages = state["messages"]
    tool_defs = await get_tool_defs(config)
    model_with_tools = model.bind_tools(tool_defs)
    response = await model_with_tools.ainvoke(messages)
@@ -185,7 +187,9 @@ workflow.add_conditional_edges(
    ["tools", END],
 )
 workflow.add_edge("tools", "agent")
-ta_ui_graph = workflow.compile()
+# ta_ui_graph = workflow.compile()
+memory = MemorySaver()
+ta_ui_graph = workflow.compile(checkpointer=memory)
 
 
 
