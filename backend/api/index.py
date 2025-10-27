@@ -55,6 +55,7 @@ BASE_URL = "https://comment-sense-1.onrender.com" if ENVIRONMENT == "production"
 app.add_middleware(
    CORSMiddleware,
    allow_origins=[
+       "http://3.91.189.197:3000",
        "http://localhost:3000",
        "http://127.0.0.1:3000",
        "https://comment-sense-delta.vercel.app",
