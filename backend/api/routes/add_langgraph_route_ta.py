@@ -304,7 +304,8 @@ def add_langgraph_route(app: FastAPI, graph, path: str, current_user: UserInDB =
         )
 
         inputs = convert_to_langchain_messages(request.messages)
-        all_messages = inputs
+        # all_messages = inputs
+        new_message_input = inputs[-1:]
         # system_msg = SystemMessage(content=SYSTEM_MESSAGE)
 
         # Load chat history
@@ -357,7 +358,7 @@ def add_langgraph_route(app: FastAPI, graph, path: str, current_user: UserInDB =
             nonlocal accumulated_content
 
             async for msg, metadata in graph.astream(
-                {"messages": all_messages},
+                {"messages": new_message_input},
                 config=config,
                 stream_mode="messages"
             ):
