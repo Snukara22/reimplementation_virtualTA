@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CSC 517 TA Chatbot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="page">
+  <div class="chat-container">
+
+    <header class="chat-header">
+      <div>
+        <h1>CSC 517 TA Chatbot</h1>
+        <p>Answers grounded in the SaaS textbook + HITL controls</p>
+      </div>
+      <a class="btn btn-small" href="{{ url_for('home') }}">← Home</a>
+    </header>
+
+    <!-- Chat messages -->
+    <div id="chat-log" class="chat-log">
+      <div class="msg msg-bot">
+        <div class="msg-bubble">
+          <div class="msg-name">TA Bot</div>
+          <div class="msg-text">
+            Hi! Ask me a question from CSC 517.
+            I’ll answer using the course textbook. After that, you can rate the answer and
+            use hints / reflection prompts.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Form area -->
+    <form id="chat-form" class="chat-form">
+      <div class="form-row">
+        <label for="question">Your question</label>
+        <textarea id="question" name="question" rows="3"
+                  placeholder="Example: What is inheritance in the context of object-oriented design?"></textarea>
+      </div>
+
+      <div class="form-row">
+        <label for="first_guess">Your first guess (optional)</label>
+        <textarea id="first_guess" name="first_guess" rows="2"
+                  placeholder="Try to answer in your own words before asking the bot..."></textarea>
+      </div>
+
+      <div class="form-row horizontal">
+        <div class="form-col">
+          <label for="onboarding_pref">Answer style</label>
+          <select id="onboarding_pref" name="onboarding_pref">
+            <option value="concise">Concise</option>
+            <option value="detailed">Detailed</option>
+            <option value="default">Default</option>
+          </select>
+        </div>
+        <div class="form-col right">
+          <button type="submit" class="btn">Ask</button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Answer details panel -->
+    <section id="answer-details" class="answer-details hidden">
+      <h2>Answer Details</h2>
+
+      <div id="sources-block" class="card">
+        <h3>Extracted from (docs/pages)</h3>
+        <ul id="sources-list"></ul>
+      </div>
+
+      <div class="card collapsible">
+        <div class="card-header" data-toggle="hint">
+          <span>Hint (based on your question and retrieved docs)</span>
+          <span class="chevron">▸</span>
+        </div>
+        <div id="hint-body" class="card-body collapsed"></div>
+      </div>
+
+      <div class="card collapsible">
+        <div class="card-header" data-toggle="reflection">
+          <span>Reflection prompt</span>
+          <span class="chevron">▸</span>
+        </div>
+        <div id="reflection-body" class="card-body collapsed"></div>
+      </div>
+
+      <div id="next-step" class="card">
+        <h3>Next step suggestion</h3>
+        <p id="next-step-text"></p>
+      </div>
+
+      <div class="card feedback-card">
+        <div class="feedback-header">
+          <span>Feedback on this answer:</span>
+          <span id="feedback-status" class="feedback-status"></span>
+        </div>
+        <div class="feedback-row">
+          <button type="button" class="btn btn-feedback" data-fb="helpful">👍 Helpful</button>
+          <button type="button" class="btn btn-feedback" data-fb="needs_work">👎 Needs work</button>
+          <button type="button" class="btn btn-feedback" data-fb="confusing">⚠️ Confusing</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    const form = document.getElementById('chat-form');
+    const chatLog = document.getElementById('chat-log');
+    const answerDetails = document.getElementById('answer-details');
+    const sourcesList = document.getElementById('sources-list');
+    const hintBody = document.getElementById('hint-body');
+    const reflectionBody = document.getElementById('reflection-body');
+    const nextStepText = document.getElementById('next-step-text');
+    const feedbackStatusEl = document.getElementById('feedback-status');
+
+    let lastQuestion = null;
+    let lastAnswer = null;
+
+    function appendMessage(role, text) {
+      const msg = document.createElement('div');
+      msg.className = role === 'user' ? 'msg msg-user' : 'msg msg-bot';
+
+      const bubble = document.createElement('div');
+      bubble.className = 'msg-bubble';
+
+      const name = document.createElement('div');
+      name.className = 'msg-name';
+      name.textContent = role === 'user' ? 'You' : 'TA Bot';
+
+      const body = document.createElement('div');
+      body.className = 'msg-text';
+      body.textContent = text;
+
+      bubble.appendChild(name);
+      bubble.appendChild(body);
+      msg.appendChild(bubble);
+      chatLog.appendChild(msg);
+
+      chatLog.scrollTop = chatLog.scrollHeight;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const questionEl = document.getElementById('question');
+      const firstGuessEl = document.getElementById('first_guess');
+      const prefEl = document.getElementById('onboarding_pref');
+
+      const question = questionEl.value.trim();
+      const firstGuess = firstGuessEl.value.trim();
+      const onboardingPref = prefEl.value;
+
+      if (!question) {
+        alert('Please enter a question.');
+        return;
+      }
+
+      // Track this question globally for feedback
+      lastQuestion = question;
+      lastAnswer = null;
+      feedbackStatusEl.textContent = '';
+
+      // show user message
+      appendMessage('user', question);
+
+      // clear question box, keep first guess if you want
+      questionEl.value = '';
+
+      // show temporary “thinking” message
+      const thinkingMsg = document.createElement('div');
+      thinkingMsg.className = 'msg msg-bot';
+      thinkingMsg.innerHTML = '<div class="msg-bubble"><div class="msg-name">TA Bot</div><div class="msg-text">Thinking…</div></div>';
+      chatLog.appendChild(thinkingMsg);
+      chatLog.scrollTop = chatLog.scrollHeight;
+
+      const fd = new FormData();
+      fd.append('question', question);
+      fd.append('first_guess', firstGuess);
+      fd.append('onboarding_pref', onboardingPref);
+
+      try {
+        const resp = await fetch('{{ url_for("chat") }}', {
+          method: 'POST',
+          body: fd
+        });
+        const data = await resp.json();
+
+        chatLog.removeChild(thinkingMsg);
+
+        const answer = data.answer || '(no answer)';
+        lastAnswer = answer;
+        appendMessage('bot', answer);
+
+        // Fill answer details panel
+        answerDetails.classList.remove('hidden');
+
+        // Sources
+        sourcesList.innerHTML = '';
+        (data.sources || []).forEach(src => {
+          const li = document.createElement('li');
+          li.textContent = src;
+          sourcesList.appendChild(li);
+        });
+
+        // Hint & Reflection
+        hintBody.innerHTML = data.hint_html || '';
+        reflectionBody.innerHTML = data.reflection_html || '';
+        nextStepText.textContent = data.next_step || '';
+
+      } catch (err) {
+        console.error(err);
+        chatLog.removeChild(thinkingMsg);
+        appendMessage('bot', 'Something went wrong on the server.');
+      }
+    });
+
+    // simple collapsible behavior
+    document.addEventListener('click', (e) => {
+      const header = e.target.closest('.card-header');
+      if (!header) return;
+      const type = header.dataset.toggle;
+      let body;
+      if (type === 'hint') body = hintBody;
+      else if (type === 'reflection') body = reflectionBody;
+      else return;
+
+      body.classList.toggle('collapsed');
+      const chev = header.querySelector('.chevron');
+      if (chev) chev.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
+    });
+
+    // Feedback buttons
+    document.addEventListener('click', async (e) => {
+      const btn = e.target.closest('.btn-feedback');
+      if (!btn) return;
+
+      if (!lastQuestion || !lastAnswer) {
+        alert('Ask a question and get an answer before giving feedback.');
+        return;
+      }
+
+      const rating = btn.dataset.fb; // 'helpful', 'needs_work', or 'confusing'
+
+      try {
+        const resp = await fetch('{{ url_for("feedback") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rating: rating,
+            question: lastQuestion,
+            answer: lastAnswer,
+            comment: ''
+          })
+        });
+        await resp.json();
+        feedbackStatusEl.textContent = 'Got it, thanks!';
+      } catch (err) {
+        console.error(err);
+        feedbackStatusEl.textContent = 'Could not save feedback.';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>CSC 517 TA Chatbot</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="page">
+  <div class="container">
+    <h1>CSC 517 TA Chatbot</h1>
+    <p>
+      This is a small Flask UI that wraps the TA chatbot logic you built in Colab.
+      It uses the CSC 517 textbook as its main knowledge source and supports
+      First Guess & onboarding preferences.
+    </p>
+    <a class="btn" href="{{ url_for('chat') }}">Open Chat</a>
+  </div>
+</body>
+</html>
