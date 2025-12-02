@@ -1,265 +1,677 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <title>CSC 517 TA Chatbot</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body class="page">
-  <div class="chat-container">
-
-    <header class="chat-header">
-      <div>
-        <h1>CSC 517 TA Chatbot</h1>
-        <p>Answers grounded in the SaaS textbook + HITL controls</p>
-      </div>
-      <a class="btn btn-small" href="{{ url_for('home') }}">← Home</a>
-    </header>
-
-    <!-- Chat messages -->
-    <div id="chat-log" class="chat-log">
-      <div class="msg msg-bot">
-        <div class="msg-bubble">
-          <div class="msg-name">TA Bot</div>
-          <div class="msg-text">
-            Hi! Ask me a question from CSC 517.
-            I’ll answer using the course textbook. After that, you can rate the answer and
-            use hints / reflection prompts.
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Form area -->
-    <form id="chat-form" class="chat-form">
-      <div class="form-row">
-        <label for="question">Your question</label>
-        <textarea id="question" name="question" rows="3"
-                  placeholder="Example: What is inheritance in the context of object-oriented design?"></textarea>
-      </div>
-
-      <div class="form-row">
-        <label for="first_guess">Your first guess (optional)</label>
-        <textarea id="first_guess" name="first_guess" rows="2"
-                  placeholder="Try to answer in your own words before asking the bot..."></textarea>
-      </div>
-
-      <div class="form-row horizontal">
-        <div class="form-col">
-          <label for="onboarding_pref">Answer style</label>
-          <select id="onboarding_pref" name="onboarding_pref">
-            <option value="concise">Concise</option>
-            <option value="detailed">Detailed</option>
-            <option value="default">Default</option>
-          </select>
-        </div>
-        <div class="form-col right">
-          <button type="submit" class="btn">Ask</button>
-        </div>
-      </div>
-    </form>
-
-    <!-- Answer details panel -->
-    <section id="answer-details" class="answer-details hidden">
-      <h2>Answer Details</h2>
-
-      <div id="sources-block" class="card">
-        <h3>Extracted from (docs/pages)</h3>
-        <ul id="sources-list"></ul>
-      </div>
-
-      <div class="card collapsible">
-        <div class="card-header" data-toggle="hint">
-          <span>Hint (based on your question and retrieved docs)</span>
-          <span class="chevron">▸</span>
-        </div>
-        <div id="hint-body" class="card-body collapsed"></div>
-      </div>
-
-      <div class="card collapsible">
-        <div class="card-header" data-toggle="reflection">
-          <span>Reflection prompt</span>
-          <span class="chevron">▸</span>
-        </div>
-        <div id="reflection-body" class="card-body collapsed"></div>
-      </div>
-
-      <div id="next-step" class="card">
-        <h3>Next step suggestion</h3>
-        <p id="next-step-text"></p>
-      </div>
-
-      <div class="card feedback-card">
-        <div class="feedback-header">
-          <span>Feedback on this answer:</span>
-          <span id="feedback-status" class="feedback-status"></span>
-        </div>
-        <div class="feedback-row">
-          <button type="button" class="btn btn-feedback" data-fb="helpful">👍 Helpful</button>
-          <button type="button" class="btn btn-feedback" data-fb="needs_work">👎 Needs work</button>
-          <button type="button" class="btn btn-feedback" data-fb="confusing">⚠️ Confusing</button>
-        </div>
-      </div>
-    </section>
-
-  </div>
-
-  <script>
-    const form = document.getElementById('chat-form');
-    const chatLog = document.getElementById('chat-log');
-    const answerDetails = document.getElementById('answer-details');
-    const sourcesList = document.getElementById('sources-list');
-    const hintBody = document.getElementById('hint-body');
-    const reflectionBody = document.getElementById('reflection-body');
-    const nextStepText = document.getElementById('next-step-text');
-    const feedbackStatusEl = document.getElementById('feedback-status');
-
-    let lastQuestion = null;
-    let lastAnswer = null;
-
-    function appendMessage(role, text) {
-      const msg = document.createElement('div');
-      msg.className = role === 'user' ? 'msg msg-user' : 'msg msg-bot';
-
-      const bubble = document.createElement('div');
-      bubble.className = 'msg-bubble';
-
-      const name = document.createElement('div');
-      name.className = 'msg-name';
-      name.textContent = role === 'user' ? 'You' : 'TA Bot';
-
-      const body = document.createElement('div');
-      body.className = 'msg-text';
-      body.textContent = text;
-
-      bubble.appendChild(name);
-      bubble.appendChild(body);
-      msg.appendChild(bubble);
-      chatLog.appendChild(msg);
-
-      chatLog.scrollTop = chatLog.scrollHeight;
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      /* Dark theme (default) */
+      --bg: #050816;
+      --card: #020617;
+      --accent: #6366f1;
+      --accent-soft: #1d1b4b;
+      --border: #111827;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --bubble-user: linear-gradient(135deg, #4f46e5, #8b5cf6);
+      --bubble-ta: #020617;
+      --shadow: 0 22px 55px rgba(15,23,42,0.9);
     }
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
+    body.light {
+      --bg: #f3f4f6;
+      --card: #ffffff;
+      --accent: #4f46e5;
+      --accent-soft: #e0e7ff;
+      --border: #d1d5db;
+      --text-main: #111827;
+      --text-muted: #6b7280;
+      --bubble-user: linear-gradient(135deg, #4f46e5, #8b5cf6);
+      --bubble-ta: #f9fafb;
+      --shadow: 0 12px 30px rgba(148,163,184,0.4);
+    }
 
-      const questionEl = document.getElementById('question');
-      const firstGuessEl = document.getElementById('first_guess');
-      const prefEl = document.getElementById('onboarding_pref');
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #111827 0, #020617 45%, #000 100%);
+      background-color: var(--bg);
+      font-family: system-ui, sans-serif;
+      color: var(--text-main);
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
 
-      const question = questionEl.value.trim();
-      const firstGuess = firstGuessEl.value.trim();
-      const onboardingPref = prefEl.value;
+    body.light {
+      background: var(--bg);
+    }
 
-      if (!question) {
-        alert('Please enter a question.');
-        return;
-      }
+    .app-shell {
+      max-width: 980px;
+      margin: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      height: 100vh;
+    }
 
-      // Track this question globally for feedback
-      lastQuestion = question;
-      lastAnswer = null;
-      feedbackStatusEl.textContent = '';
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
 
-      // show user message
-      appendMessage('user', question);
+    .title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
 
-      // clear question box, keep first guess if you want
-      questionEl.value = '';
+    .title-main {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
 
-      // show temporary “thinking” message
-      const thinkingMsg = document.createElement('div');
-      thinkingMsg.className = 'msg msg-bot';
-      thinkingMsg.innerHTML = '<div class="msg-bubble"><div class="msg-name">TA Bot</div><div class="msg-text">Thinking…</div></div>';
-      chatLog.appendChild(thinkingMsg);
-      chatLog.scrollTop = chatLog.scrollHeight;
+    .title-sub {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
 
-      const fd = new FormData();
-      fd.append('question', question);
-      fd.append('first_guess', firstGuess);
-      fd.append('onboarding_pref', onboardingPref);
+    .theme-toggle {
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      padding: 5px 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
 
-      try {
-        const resp = await fetch('{{ url_for("chat") }}', {
-          method: 'POST',
-          body: fd
-        });
-        const data = await resp.json();
+    .theme-toggle span.icon {
+      font-size: 1rem;
+    }
 
-        chatLog.removeChild(thinkingMsg);
+    .chat-card {
+      flex: 1;
+      background: var(--card);
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: var(--shadow);
+    }
 
-        const answer = data.answer || '(no answer)';
-        lastAnswer = answer;
-        appendMessage('bot', answer);
+    .chat-scroll {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-right: 6px;
+    }
 
-        // Fill answer details panel
-        answerDetails.classList.remove('hidden');
+    .chat-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .chat-scroll::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 999px;
+    }
 
-        // Sources
-        sourcesList.innerHTML = '';
-        (data.sources || []).forEach(src => {
-          const li = document.createElement('li');
-          li.textContent = src;
-          sourcesList.appendChild(li);
-        });
+    .msg-row { display: flex; width: 100%; }
+    .msg-row.user { justify-content: flex-end; }
+    .msg-row.ta { justify-content: flex-start; }
 
-        // Hint & Reflection
-        hintBody.innerHTML = data.hint_html || '';
-        reflectionBody.innerHTML = data.reflection_html || '';
-        nextStepText.textContent = data.next_step || '';
+    .bubble {
+      max-width: 78%;
+      padding: 10px 12px;
+      border-radius: 16px;
+      font-size: 0.94rem;
+      line-height: 1.45;
+      background: var(--bubble-ta);
+      border: 1px solid var(--border);
+      position: relative;
+      word-wrap: break-word;
+    }
 
-      } catch (err) {
-        console.error(err);
-        chatLog.removeChild(thinkingMsg);
-        appendMessage('bot', 'Something went wrong on the server.');
-      }
+    .bubble.user {
+      background: var(--bubble-user);
+      color: #ffffff;
+      border: none;
+      border-bottom-right-radius: 4px;
+    }
+
+    .bubble.ta {
+      border-bottom-left-radius: 4px;
+    }
+
+    .bubble-header {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .timestamp {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    .answer-text {
+      margin-bottom: 8px;
+      white-space: pre-wrap;
+    }
+
+    .feedback-row {
+      margin-top: 4px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .feedback-btn {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      background: var(--accent-soft);
+      border: none;
+      color: var(--text-main);
+      cursor: pointer;
+    }
+
+    .feedback-btn:hover { filter: brightness(1.1); }
+
+    .section-block {
+      margin-top: 6px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 9px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    .section-header span.label {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .section-header span.chevron {
+      font-size: 0.9rem;
+    }
+
+    .section-content {
+      padding: 4px 9px 8px;
+      border-top: 1px solid var(--border);
+      display: none;
+    }
+
+    .section-block.open .section-content {
+      display: block;
+    }
+
+    .section-block.open .section-header span.chevron {
+      transform: rotate(90deg);
+    }
+
+    .status-line {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      min-height: 1.1em;
+    }
+
+    .typing-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--accent);
+      display: inline-block;
+      animation: pulse 1s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    /* Input area */
+    .input-card {
+      border-top: 1px solid var(--border);
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    textarea, select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px;
+      color: var(--text-main);
+      resize: vertical;
+      font-size: 0.9rem;
+    }
+
+    textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .primary-btn {
+      padding: 7px 16px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 999px;
+      border: none;
+      color: white;
+      cursor: pointer;
+      font-size: 0.9rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .primary-btn:disabled { opacity: 0.55; cursor: default; }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+
+  <div class="header-row">
+    <div class="title-block">
+      <div class="title-main">CSC 517 HITL TA Chatbot</div>
+      <div class="title-sub">Ask a question, then rate the TA’s answer, hints, and next steps.</div>
+    </div>
+    <button id="themeToggle" class="theme-toggle">
+      <span class="icon" id="themeIcon">🌙</span>
+      <span id="themeLabel">Dark</span>
+    </button>
+  </div>
+
+  <div class="chat-card">
+    <div id="chatMessages" class="chat-scroll"></div>
+
+    <div id="statusLine" class="status-line"></div>
+
+    <form id="chatForm" class="input-card">
+      <div>
+        <label for="question">Question</label>
+        <textarea id="question" name="question" rows="3"
+                  placeholder="Type a CSC 517 question..." required></textarea>
+      </div>
+
+      <div class="controls-row">
+        <div style="flex: 1; max-width: 220px;">
+          <label for="onboarding_pref">Explanation style</label>
+          <select id="onboarding_pref" name="onboarding_pref">
+            <option value="concise">Concise</option>
+            <option value="step_by_step">Step-by-step</option>
+            <option value="deep_dive">Deep dive</option>
+          </select>
+        </div>
+        <button type="submit" id="askBtn" class="primary-btn">Ask TA</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const chatMessages = document.getElementById("chatMessages");
+  const chatForm = document.getElementById("chatForm");
+  const askBtn = document.getElementById("askBtn");
+  const statusLine = document.getElementById("statusLine");
+  const themeToggle = document.getElementById("themeToggle");
+  const themeIcon = document.getElementById("themeIcon");
+  const themeLabel = document.getElementById("themeLabel");
+
+  let lastQuestion = "";
+  let lastAnswer = "";
+
+  let typingRow = null;  
+
+  function currentTimeString() {
+    return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function appendUserMessage(text) {
+    const row = document.createElement("div");
+    row.className = "msg-row user";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble user";
+
+    const content = document.createElement("div");
+    content.textContent = text;
+    bubble.appendChild(content);
+
+    const ts = document.createElement("div");
+    ts.className = "timestamp";
+    ts.textContent = currentTimeString();
+    bubble.appendChild(ts);
+
+    row.appendChild(bubble);
+    chatMessages.appendChild(row);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function createSectionBlock(title, contentElement) {
+    const block = document.createElement("div");
+    block.className = "section-block";
+
+    const header = document.createElement("div");
+    header.className = "section-header";
+
+    const label = document.createElement("span");
+    label.className = "label";
+    label.textContent = title;
+
+    const chevron = document.createElement("span");
+    chevron.className = "chevron";
+    chevron.textContent = "›";
+
+    header.appendChild(label);
+    header.appendChild(chevron);
+
+    const content = document.createElement("div");
+    content.className = "section-content";
+    content.appendChild(contentElement);
+
+    header.onclick = () => {
+      block.classList.toggle("open");
+    };
+
+    block.appendChild(header);
+    block.appendChild(content);
+    return block;
+  }
+
+  function appendTAMessage(answer, hint, reflectionQuestions, nextStep) {
+    // remove typing row if present
+    if (typingRow && typingRow.parentNode) {
+      typingRow.parentNode.removeChild(typingRow);
+      typingRow = null;
+    }
+
+    const row = document.createElement("div");
+    row.className = "msg-row ta";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble ta";
+
+    const header = document.createElement("div");
+    header.className = "bubble-header";
+    header.textContent = "TA answer";
+    bubble.appendChild(header);
+
+    const answerDiv = document.createElement("div");
+    answerDiv.className = "answer-text";
+    answerDiv.textContent = answer;
+    bubble.appendChild(answerDiv);
+
+    // Feedback row directly under answer
+    const fbRow = document.createElement("div");
+    fbRow.className = "feedback-row";
+
+    ["helpful", "needs_work", "confusing"].forEach(type => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "feedback-btn";
+      btn.dataset.rating = type;
+
+      if (type === "helpful") btn.textContent = "👍 Helpful";
+      else if (type === "needs_work") btn.textContent = "👎 Needs work";
+      else btn.textContent = "⚠️ Confusing";
+
+      fbRow.appendChild(btn);
     });
 
-    // simple collapsible behavior
-    document.addEventListener('click', (e) => {
-      const header = e.target.closest('.card-header');
-      if (!header) return;
-      const type = header.dataset.toggle;
-      let body;
-      if (type === 'hint') body = hintBody;
-      else if (type === 'reflection') body = reflectionBody;
-      else return;
+    bubble.appendChild(fbRow);
 
-      body.classList.toggle('collapsed');
-      const chev = header.querySelector('.chevron');
-      if (chev) chev.textContent = body.classList.contains('collapsed') ? '▸' : '▾';
-    });
+    // Hint block 
+    if (hint) {
+      const hintText = document.createElement("div");
+      hintText.textContent = hint;
+      const hintBlock = createSectionBlock("Hint", hintText);
+      hintBlock.classList.add("open"); 
+      bubble.appendChild(hintBlock);
+    }
 
-    // Feedback buttons
-    document.addEventListener('click', async (e) => {
-      const btn = e.target.closest('.btn-feedback');
-      if (!btn) return;
+    // Reflection (collapsible)
+    if (reflectionQuestions && reflectionQuestions.length > 0) {
+      const list = document.createElement("ul");
+      list.style.margin = "4px 0 0";
+      list.style.paddingLeft = "18px";
+      reflectionQuestions.forEach(q => {
+        const li = document.createElement("li");
+        li.textContent = q;
+        list.appendChild(li);
+      });
+      const reflBlock = createSectionBlock("Reflection prompts", list);
+      bubble.appendChild(reflBlock);
+    }
 
-      if (!lastQuestion || !lastAnswer) {
-        alert('Ask a question and get an answer before giving feedback.');
-        return;
-      }
+    // Next step (collapsible)
+    if (nextStep) {
+      const nsText = document.createElement("div");
+      nsText.textContent = nextStep;
+      const nsBlock = createSectionBlock("Next step suggestion", nsText);
+      bubble.appendChild(nsBlock);
+    }
 
-      const rating = btn.dataset.fb; // 'helpful', 'needs_work', or 'confusing'
+    const ts = document.createElement("div");
+    ts.className = "timestamp";
+    ts.textContent = currentTimeString();
+    bubble.appendChild(ts);
 
-      try {
-        const resp = await fetch('{{ url_for("feedback") }}', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rating: rating,
-            question: lastQuestion,
-            answer: lastAnswer,
-            comment: ''
-          })
-        });
-        await resp.json();
-        feedbackStatusEl.textContent = 'Got it, thanks!';
-      } catch (err) {
-        console.error(err);
-        feedbackStatusEl.textContent = 'Could not save feedback.';
-      }
-    });
-  </script>
+    row.appendChild(bubble);
+    chatMessages.appendChild(row);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function showTypingIndicator() {
+    if (typingRow) return;
+
+    typingRow = document.createElement("div");
+    typingRow.className = "msg-row ta";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble ta";
+
+    const header = document.createElement("div");
+    header.className = "bubble-header";
+    header.textContent = "TA is typing...";
+    bubble.appendChild(header);
+
+    const dots = document.createElement("div");
+    dots.innerHTML = '<span class="typing-dot"></span> <span class="typing-dot"></span> <span class="typing-dot"></span>';
+    bubble.appendChild(dots);
+
+    typingRow.appendChild(bubble);
+    chatMessages.appendChild(typingRow);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function hideTypingIndicator() {
+    if (typingRow && typingRow.parentNode) {
+      typingRow.parentNode.removeChild(typingRow);
+      typingRow = null;
+    }
+  }
+
+  // Welcome TA message
+  function appendWelcomeMessage() {
+    const row = document.createElement("div");
+    row.className = "msg-row ta";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble ta";
+
+    const header = document.createElement("div");
+    header.className = "bubble-header";
+    header.textContent = "TA";
+    bubble.appendChild(header);
+
+    const text = document.createElement("div");
+    text.className = "answer-text";
+    text.textContent =
+      "Hi! I’m the CSC 517 TA chatbot.What do you wanna learn today?";
+    bubble.appendChild(text);
+
+    const ts = document.createElement("div");
+    ts.className = "timestamp";
+    ts.textContent = currentTimeString();
+    bubble.appendChild(ts);
+
+    row.appendChild(bubble);
+    chatMessages.appendChild(row);
+  }
+
+  // Form submit
+  chatForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const question = document.getElementById("question").value.trim();
+    const onboardingPref = document.getElementById("onboarding_pref").value;
+
+    if (!question) return;
+
+    lastQuestion = question;
+
+    appendUserMessage(question);
+    document.getElementById("question").value = "";
+
+    askBtn.disabled = true;
+    statusLine.innerHTML = '<span class="typing-dot"></span> TA is thinking...';
+    showTypingIndicator();
+
+    const formData = new FormData();
+    formData.append("question", question);
+    formData.append("first_guess", "");  
+    formData.append("onboarding_pref", onboardingPref);
+
+    try {
+      const res = await fetch("/chat", { method: "POST", body: formData });
+
+      if (!res.ok) throw new Error("Request failed: " + res.status);
+
+      const data = await res.json();
+      lastAnswer = data.answer || "";
+
+      appendTAMessage(
+        data.answer || "Sorry, I couldn't generate an answer.",
+        data.hint || "",
+        data.reflection_questions || [],
+        data.next_step || ""
+      );
+
+      statusLine.textContent = "";
+    } catch (err) {
+      console.error(err);
+      statusLine.textContent = "Error while contacting TA. Please try again.";
+      hideTypingIndicator();
+    } finally {
+      hideTypingIndicator();
+      askBtn.disabled = false;
+    }
+  });
+
+
+  async function sendFeedback(rating) {
+    if (!lastAnswer || !lastQuestion) return;
+    try {
+      await fetch("/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rating,
+          question: lastQuestion,
+          first_guess: "",
+          answer: lastAnswer,
+          comment: ""
+        })
+      });
+      statusLine.textContent = "Feedback saved. Thank you!";
+      setTimeout(() => {
+        if (statusLine.textContent.startsWith("Feedback saved")) {
+          statusLine.textContent = "";
+        }
+      }, 2000);
+    } catch (err) {
+      console.error(err);
+      statusLine.textContent = "Could not save feedback.";
+    }
+  }
+
+  chatMessages.addEventListener("click", (e) => {
+    const btn = e.target.closest(".feedback-btn");
+    if (!btn) return;
+    const rating = btn.dataset.rating;
+    if (rating) sendFeedback(rating);
+  });
+
+  
+  function applyTheme(theme) {
+    if (theme === "light") {
+      document.body.classList.add("light");
+      themeIcon.textContent = "☀️";
+      themeLabel.textContent = "Light";
+    } else {
+      document.body.classList.remove("light");
+      themeIcon.textContent = "🌙";
+      themeLabel.textContent = "Dark";
+    }
+  }
+
+  function loadTheme() {
+    const stored = localStorage.getItem("csc517_theme") || "dark";
+    applyTheme(stored);
+  }
+
+  themeToggle.addEventListener("click", () => {
+    const isLight = document.body.classList.contains("light");
+    const newTheme = isLight ? "dark" : "light";
+    applyTheme(newTheme);
+    localStorage.setItem("csc517_theme", newTheme);
+  });
+
+  // On page load
+  loadTheme();
+  appendWelcomeMessage();
+</script>
 </body>
 </html>
